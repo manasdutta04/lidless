@@ -67,7 +67,7 @@ function tips(snap) {
     list.push({ glyph: "terminal", title: `${snap.agents[0].name} is running`, body: "Start a session from the Lidless tray icon before you close the lid, and it keeps working.", action: "panel", actionTitle: "Open Tray Panel", timely: true });
   }
   list.push(
-    { glyph: "wind", title: "Keep it ventilated", body: "Closed-lid work holds in heat. Use a hard, open surface, and never close the computer in a bag or sleeve.", action: "link", url: "https://github.com/manasdutta04/lidless#readme", actionTitle: "Learn More" },
+    { glyph: "wind", title: "Keep it ventilated", body: "Closed-lid work holds in heat. Use a hard, open surface, and never close the computer in a bag or sleeve.", action: "link", url: "https://lidless.app/docs", actionTitle: "Learn More" },
     { glyph: "terminal", title: "Wrap your agent in one command", body: "Run lidless run -- claude and your computer stays awake exactly as long as the agent runs, then sleeps normally.", action: "copy", text: "lidless run -- claude", actionTitle: "Copy Command" },
     { glyph: "wifi", title: "Stay connected", body: "Remote control and SSH need a network. Lidless warns you if the connection drops while the lid is closed.", action: "settings", actionTitle: "Notification Settings" },
     { glyph: "bolt", title: "Plug in for overnight work", body: "On the power adapter the battery limits don't apply, so a session can run as long as you set." },

@@ -187,7 +187,7 @@ bindActions(root, {
   setup: () => invoke("setup"),
   settings: () => invoke("open_window", { page: "settings" }),
   about: () => invoke("open_window", { page: "about" }),
-  help: () => invoke("open_url", { url: "https://github.com/manasdutta04/lidless#readme" }),
+  help: () => invoke("open_url", { url: "https://lidless.app/docs" }),
   quit: () => invoke("quit"),
 });
 

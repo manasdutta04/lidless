@@ -429,8 +429,11 @@ final class AppModel {
         NSWorkspace.shared.open(env.store.paths.log)
     }
 
+    /// The docs page on the website; mirrors `docs/HELP.md` in the repository.
+    static let docsURL = "https://lidless.app/docs"
+
     func openHelp() {
-        if let url = URL(string: "https://github.com/manasdutta04/lidless#readme") {
+        if let url = URL(string: Self.docsURL) {
             NSWorkspace.shared.open(url)
         }
     }

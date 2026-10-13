@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lidless recovery journal",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "macos": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sleepDisabled": { "$ref": "#/$defs/boolEntry" },
+        "lowPowerMode": { "$ref": "#/$defs/boolEntry" }
+      }
+    },
+    "windows": {
+      "type": "object",
+      "properties": {
+        "lidAction": {
+          "type": "object",
+          "required": ["scheme", "originalAC", "originalDC", "recordedAt"],
+          "properties": {
+            "scheme": { "type": "string" },
+            "originalAC": { "type": "integer" },
+            "originalDC": { "type": "integer" },
+            "recordedAt": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    },
+    "linux": { "type": "object" }
+  },
+  "$defs": {
+    "boolEntry": {
+      "type": "object",
+      "required": ["original", "recordedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "original": { "type": "boolean" },
+        "recordedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

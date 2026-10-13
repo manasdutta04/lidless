@@ -65,8 +65,8 @@ public struct PmsetPowerControl: PowerControlling {
     /// Privileged commands get 20 s, then SIGTERM (never SIGKILL).
     public static let privilegedTimeout: TimeInterval = 20
 
-    /// Exactly the commands the sudoers rule allows. Keep in sync with
-    /// scripts/install.sh and the README's "Privileged commands" section.
+    /// Exactly the commands the sudoers rule allows (`Installer.sudoersLines`
+    /// is built from this list). Keep the README's "Privileged commands" in sync.
     public static let allowedPrivilegedArguments: [[String]] = [
         ["-a", "disablesleep", "1"],
         ["-a", "disablesleep", "0"],

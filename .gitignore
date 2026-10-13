@@ -5,3 +5,6 @@ dist/
 *.xcodeproj/
 xcuserdata/
 /rust/target/
+node_modules/
+/rust/app/dist/
+/rust/dist/

@@ -28,7 +28,10 @@ every setting back the way it was.
 > your Mac is already warm, and it refuses to start while the Mac is critically
 > hot.
 
-Platforms: **macOS 14+** today. Windows and Linux are planned.
+Platforms: **macOS 14+** (tested on real hardware), **Windows 10/11** and
+**Linux** (systemd) with the same commands, panel and window. The Windows and
+Linux builds are complete but not yet validated on real laptops; see
+[docs/windows-linux-validation.md](docs/windows-linux-validation.md).
 
 ---
 
@@ -84,6 +87,47 @@ cd lidless
 everything and removes the permission and helper. Then move Lidless.app to
 the Trash. From a source checkout, `./macos/scripts/uninstall.sh` does all of
 it (`--purge` also deletes logs and state).
+
+## Install (Windows)
+
+1. Download **Lidless-x.y.z-windows-x64.msi** from the
+   [latest release](https://github.com/manasdutta04/lidless/releases/latest)
+   and run it. Windows SmartScreen may warn because the installer is not
+   code-signed yet: choose **More info → Run anyway**.
+2. Open **Lidless** (it lives in the tray). Click **Set Up…**. Windows asks for
+   administrator approval **once**. That registers:
+   - two Task Scheduler tasks that run `lidless recover` every minute and at
+     logon (as you, no elevation), and
+   - if your account cannot change power settings directly, one task
+     (`Lidless\LidAction`, highest privileges) that only applies the lid-close
+     action Lidless asks for. See [Privileged operations](#privileged-operations).
+
+How it stays awake: the active power plan's **lid-close action** is set to
+*Do nothing* (AC and battery) after the original values are journaled, and a
+**power request** keeps Windows from idling to sleep. Both are put back when
+the session ends. Battery saver is left alone.
+
+**From the command line:** build from source with Rust installed and run
+`rust\scripts\install.ps1` in PowerShell.
+
+## Install (Linux)
+
+1. Download **Lidless-x.y.z-linux-x64.AppImage** (or `.deb`, or the arm64
+   variant) from the
+   [latest release](https://github.com/manasdutta04/lidless/releases/latest).
+   `chmod +x` the AppImage and run it.
+2. Open **Lidless** (tray icon; GNOME needs the AppIndicator extension). Click
+   **Set Up…**. Nothing runs as root: it installs a **systemd user timer**
+   (`lidless-recover.timer`) that runs `lidless recover` every minute.
+
+How it stays awake: a **systemd-logind inhibitor** for `handle-lid-switch`,
+`sleep` and `idle`, held for the length of the session. The kernel releases it
+if Lidless ever dies, and `logind.conf` is never edited. On battery with the
+lid closed, the power profile is switched to *power-saver* (journaled and
+restored). Desktops that handle the lid themselves may ignore the inhibitor;
+that is the first thing the validation checklist tests.
+
+**From the command line:** with Rust installed, `./rust/scripts/install.sh`.
 
 ## Use
 
@@ -154,7 +198,9 @@ that state folder, not the app. It:
 
 `lidless status` and the menu show anything still waiting to be restored.
 
-## Privileged commands
+## Privileged operations
+
+### macOS
 
 Lidless runs exactly these commands as root, through `sudo -n`, allowed by
 `/etc/sudoers.d/lidless` for your user only. Setup writes that file from
@@ -175,6 +221,18 @@ Known limitation: any process running as your user can also run those four
 commands without a password. They can only toggle sleep and Low Power Mode. A
 signed privileged helper will replace the sudoers rule in a later release.
 
+### Windows
+
+Nothing runs elevated during a session. Setup registers, with one UAC
+approval, the Task Scheduler task `Lidless\LidAction` (run with highest
+privileges) which does exactly one thing: apply the lid-close action values
+from a request file Lidless wrote. It is only registered when your account
+cannot change power settings directly. Recovery tasks run as you.
+
+### Linux
+
+Nothing. The logind inhibitor and the systemd user timer run as your user.
+
 ## Privacy and files
 
 Everything stays on your Mac. No telemetry, no accounts. The only network
@@ -187,6 +245,17 @@ installed silently: **Download** saves the new DMG to Downloads and opens it. St
 The log can contain process names. Check it before sharing.
 
 ## Development
+
+Rust (Windows and Linux; the shared core also runs on macOS for tests):
+
+```bash
+cd rust
+cargo test -p lidless-core          # core against spec/vectors, fakes only
+cargo build -p lidless --release    # the CLI for this platform
+cd app && npx tauri build           # the tray app (see rust/app/README.md)
+```
+
+macOS:
 
 ```bash
 cd macos
@@ -201,7 +270,8 @@ Releases: bump `Sources/LidlessCore/Version.swift`, then push a tag `vX.Y.Z`.
 GitHub Actions tests, builds the universal DMG and zip, and publishes the
 release.
 
-The behavior contract shared by every platform lives in [`spec/`](spec/).
+The behavior contract shared by every platform lives in [`spec/`](spec/); the
+Swift and Rust test suites both load `spec/vectors`.
 Real-machine checks before a release: [`docs/release-validation.md`](docs/release-validation.md).
 
 ## License

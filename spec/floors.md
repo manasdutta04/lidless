@@ -28,3 +28,12 @@ Decision function (pure, tested by `vectors/floors.json`):
 decide(onBattery, percent?, unreadableCount, thermal, lidClosed, config)
   -> { end: reason | null, wantLowPower: bool }
 ```
+
+## Starting while warm
+
+- A session never **starts** in the `critical` thermal state (when
+  `thermalRules` is on); the start is refused with a "let it cool down" error.
+- Starting in `fair` or `serious` is allowed but always warns first (the app
+  asks for confirmation, the CLI prints the warning).
+- Before the very first session, the ventilation warning is always shown and
+  must be confirmed.

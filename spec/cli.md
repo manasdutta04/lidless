@@ -11,9 +11,13 @@ JSON object on stdout (human text goes to stderr in that mode).
 | `lidless status` | Show session, owner, remaining time, journal, warnings. |
 | `lidless run [--duration <d>] -- <cmd...>` | Start a session owned by this process, run `cmd` with inherited stdio, end the session when it exits. Exit code = the command's exit code. Default duration: `runDefaultDuration` (24 h). If the duration ends first, the session ends and the command keeps running. |
 | `lidless doctor` | Check privilege setup, recovery job, state directory, current power state. Exit 0 only if a session could start. |
+| `lidless setup` | One-time setup: install the recovery job, the minimal privilege rule (asks for the admin password), and the CLI link. Safe to re-run. |
+| `lidless uninstall` | Restore everything, then remove the recovery job, privilege rule and CLI link. Refuses while a live session exists or anything is unrestored. |
 | `lidless recover` | Run the recovery algorithm once (what the scheduler job runs). |
 | `lidless config [key [value]]` | Show or set a config key. |
 | `lidless agents` | List detected coding-agent processes. |
+| `lidless stats` | Usage totals from the session history: sessions, time awake, closed-lid time, this week, longest, average, clean-restore rate. |
+| `lidless update` | Check the project's GitHub releases for a newer version and print the download link. |
 | `lidless version` | Print version. |
 
 ## Exit codes

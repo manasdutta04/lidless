@@ -8,6 +8,11 @@ name: Release (Windows and Linux)
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build (e.g. v0.1.0)"
+        required: true
 
 permissions:
   contents: write
@@ -40,16 +45,20 @@ jobs:
         working-directory: rust
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Check tag matches the Cargo version
         shell: bash
         run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
           VERSION="$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')"
-          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match rust/Cargo.toml version $VERSION" >&2
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "Tag $TAG does not match rust/Cargo.toml version $VERSION" >&2
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -65,8 +74,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            libdbus-1-dev pkg-config build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
+            libdbus-1-dev pkg-config build-essential curl wget file libssl-dev libgtk-3-dev
 
       - name: Test the core
         run: cargo test -p lidless-core --target ${{ matrix.target }}
@@ -85,7 +94,7 @@ jobs:
         working-directory: rust/app
         shell: bash
         run: |
-          npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+          # No npm project: the frontend is plain files; only the Tauri CLI is needed.
           # The default config has no externalBin so macOS preview builds work
           # without the CLI; the release adds it here.
           npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} \
@@ -116,6 +125,8 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -129,9 +140,9 @@ jobs:
         run: |
           # The macOS workflow creates the release; wait for it, then upload.
           for i in $(seq 1 30); do
-            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
             sleep 20
           done
-          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Lidless ${GITHUB_REF_NAME#v}" --notes "See the macOS job for install notes."
-          gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Lidless ${TAG#v}" --notes "See the macOS job for install notes."
+          gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber

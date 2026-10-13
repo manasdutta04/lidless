@@ -126,8 +126,32 @@ mod imp {
         )
     }
 
+    /// Parses "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" without panicking on
+    /// bad input (the `From<&str>` impl in windows-core panics).
     fn parse_guid(s: &str) -> Result<GUID> {
-        GUID::try_from(s).map_err(|_| LidlessError::System(format!("bad power scheme id {s}")))
+        let bad = || LidlessError::System(format!("bad power scheme id {s}"));
+        let parts: Vec<&str> = s
+            .trim_matches(|c| c == '{' || c == '}')
+            .split('-')
+            .collect();
+        if parts.len() != 5
+            || parts[0].len() != 8
+            || parts[1].len() != 4
+            || parts[2].len() != 4
+            || parts[3].len() != 4
+            || parts[4].len() != 12
+        {
+            return Err(bad());
+        }
+        let d1 = u32::from_str_radix(parts[0], 16).map_err(|_| bad())?;
+        let d2 = u16::from_str_radix(parts[1], 16).map_err(|_| bad())?;
+        let d3 = u16::from_str_radix(parts[2], 16).map_err(|_| bad())?;
+        let tail = format!("{}{}", parts[3], parts[4]);
+        let mut d4 = [0u8; 8];
+        for (i, b) in d4.iter_mut().enumerate() {
+            *b = u8::from_str_radix(&tail[i * 2..i * 2 + 2], 16).map_err(|_| bad())?;
+        }
+        Ok(GUID::from_values(d1, d2, d3, d4))
     }
 
     pub fn active_scheme() -> Result<String> {

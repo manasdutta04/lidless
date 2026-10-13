@@ -265,8 +265,7 @@ mod dbus {
     pub fn active_power_profile() -> Option<String> {
         let conn = Connection::system().ok()?;
         let proxy = profiles(&conn)?;
-        let value = proxy.get_property::<String>("ActiveProfile").ok();
-        value
+        proxy.get_property::<String>("ActiveProfile").ok()
     }
 
     pub fn set_power_profile(profile: &str) -> Result<()> {

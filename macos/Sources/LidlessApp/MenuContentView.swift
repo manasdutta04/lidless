@@ -2,7 +2,23 @@ import AppKit
 import LidlessCore
 import SwiftUI
 
+/// Everything inside the rounded menu bar panel.
 struct MenuContentView: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        MainPage(model: model)
+        .padding(Theme.padding)
+        .frame(width: Theme.panelWidth, alignment: .top)
+        .foregroundStyle(Theme.text)
+        .tint(Theme.accent)
+        .transaction { $0.animation = nil }   // layout never animates: no drifting content
+    }
+}
+
+// MARK: - Main page
+
+struct MainPage: View {
     @Bindable var model: AppModel
 
     private let presets: [(String, TimeInterval)] = [
@@ -11,275 +27,471 @@ struct MenuContentView: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             header
-            if model.showHeatNotice { heatNotice }
-            if let ready = model.readiness, !ready.ready { setupNeeded(ready) }
-
-            if model.busy {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text(model.busyText).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else if let session = model.snapshot?.session {
-                activeView(session)
+            if model.needsSetup {
+                SetupCard(model: model)
+            }
+            if let seconds = model.pendingStart {
+                VentilationCard(model: model, seconds: seconds)
+            } else if model.busy {
+                busyCard
+            } else if let s = model.snapshot?.session {
+                activeSection(s)
             } else {
-                idleView
+                idleSection
             }
-
-            if let error = model.errorText {
-                Label(error, systemImage: "xmark.octagon.fill")
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+            if let error = model.errorText { errorBanner(error) }
+            warnings
+            if let r = model.availableRelease {
+                Button { model.openSettings(); model.windowPage = .about } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.down.circle").font(.system(size: 13))
+                        Text("Lidless \(r.version) is available").font(Theme.ui(12.5, weight: .medium))
+                        Spacer()
+                        Text("Update").font(Theme.ui(12))
+                    }
+                    .foregroundStyle(Theme.accentText)
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .background(rounded(Theme.cardRadius).fill(Theme.accentWash))
+                    .contentShape(rounded(Theme.cardRadius))
+                }
+                .buttonStyle(.plain)
             }
-            warningsView
-            Divider()
-            statusRow
-            agentsView
-            if model.showSettings {
-                Divider()
-                SettingsSection(model: model)
-            }
-            Divider()
+            statusCard
             footer
         }
-        .padding(14)
-        .frame(width: 340)
     }
 
     // MARK: Header
 
     private var header: some View {
-        HStack {
-            Text("Lidless").font(.headline)
-            Spacer()
-            Text(model.isActive ? "Awake" : "Normal sleep")
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(model.isActive ? Color.orange.opacity(0.2) : Color.secondary.opacity(0.15)))
-                .foregroundStyle(model.isActive ? .orange : .secondary)
+        HStack(spacing: 9) {
+            Image(nsImage: BrandMark.image)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 24, height: 24)
+            Text("Lidless")
+                .font(Theme.display(17, weight: .medium))
+            Spacer(minLength: 8)
+            statePill
         }
     }
 
-    private var heatNotice: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("Keep it ventilated", systemImage: "thermometer.sun")
-                .font(.subheadline.weight(.semibold))
-            Text("With the lid closed your Mac keeps running and can get warm. Leave it on a hard, open surface. Never in a bag or sleeve.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Button("Got it") { model.acknowledgeHeatNotice() }
-                .controlSize(.small)
+    private var statePill: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(model.isActive ? Theme.accent : Theme.textTertiary)
+                .frame(width: 6, height: 6)
+            Text(model.isActive ? "Awake" : "Sleeps normally")
+                .font(Theme.ui(11.5, weight: .medium))
+                .foregroundStyle(model.isActive ? Theme.accentText : Theme.textSecondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.1)))
-    }
-
-    private func setupNeeded(_ ready: ReadinessReport) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("Setup needed", systemImage: "wrench.and.screwdriver")
-                .font(.subheadline.weight(.semibold))
-            if !ready.privilege {
-                Text("• Permission to change the sleep setting is not installed.").font(.callout)
-            }
-            if !ready.recoveryArmed {
-                Text("• The recovery agent is not installed or not running.").font(.callout)
-            }
-            Text("Run `macos/scripts/install.sh` from the Lidless folder, then reopen this menu.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Button("Check again") { Task { await model.refreshReadiness() } }
-                .controlSize(.small)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.yellow.opacity(0.12)))
-    }
-
-    // MARK: Active
-
-    private func activeView(_ s: StatusSnapshot.SessionInfo) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(DurationParser.clock(model.remaining))
-                    .font(.system(size: 34, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                Text("Awake with the lid closed until \(s.endsAt.formatted(date: Calendar.current.isDateInToday(s.endsAt) ? .omitted : .abbreviated, time: .shortened))")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                if let cmd = s.command {
-                    Text("Running: \(cmd.joined(separator: " "))")
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                } else if s.owner.kind == .cli {
-                    Text("Started from the command line").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            HStack(spacing: 6) {
-                ForEach([("+30m", 1_800.0), ("+1h", 3_600.0), ("+4h", 14_400.0)], id: \.0) { label, secs in
-                    Button(label) { model.extend(secs) }
-                }
-                Spacer()
-                Button(role: .destructive) { model.stop() } label: {
-                    Text("Stop")
-                }
-                .keyboardShortcut(.cancelAction)
-            }
-            .controlSize(.regular)
-        }
+        .padding(.horizontal, 9)
+        .frame(height: 22)
+        .background(Capsule().fill(model.isActive ? Theme.accentWash : Theme.surface))
+        .overlay(Capsule().strokeBorder(model.isActive ? Color.clear : Theme.border, lineWidth: 1))
     }
 
     // MARK: Idle
 
-    private var idleView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Keep awake with the lid closed for…")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+    private var idleSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Close the lid, keep working.")
+                    .font(Theme.display(21))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Text("Choose how long your Mac stays awake.")
+                    .font(Theme.ui(12.5))
+                    .foregroundStyle(Theme.textSecondary)
+            }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
                 ForEach(presets, id: \.0) { label, secs in
-                    Button { model.start(seconds: secs) } label: {
-                        Text(label).frame(maxWidth: .infinity)
-                    }
-                    .disabled(model.readiness?.ready == false)
+                    Button(label) { model.start(seconds: secs) }
+                        .buttonStyle(OutlineButtonStyle())
+                        .disabled(!model.isReady)
                 }
             }
             HStack(spacing: 6) {
-                TextField("Custom, e.g. 1d2h or 90m", text: $model.customDuration)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(startCustom)
-                Button("Start", action: startCustom)
-                    .disabled(model.customDuration.trimmingCharacters(in: .whitespaces).isEmpty || model.readiness?.ready == false)
+                TextField("Custom, like 1h30m", text: $model.customDuration)
+                    .textFieldStyle(.plain)
+                    .font(Theme.ui(13))
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+                    .background(rounded(Theme.controlRadius).fill(Theme.surface))
+                    .overlay(rounded(Theme.controlRadius).strokeBorder(Theme.border, lineWidth: 1))
+                    .onSubmit { model.start(model.customDuration) }
+                Button("Start") { model.start(model.customDuration) }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(!model.isReady || model.customDuration.trimmingCharacters(in: .whitespaces).isEmpty)
             }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "thermometer.medium")
+                    .font(.system(size: 11, weight: .light))
+                Text("Keep it on a hard, ventilated surface. Never close it in a bag.")
+                    .font(Theme.ui(11.5))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(model.thermal.isWarm ? Theme.accentText : Theme.textSecondary)
             if let le = model.snapshot?.lastEnd {
-                Text("Last session ended \(le.at.formatted(.relative(presentation: .named))): \(le.reason.summary)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Last session ended \(le.at.formatted(.relative(presentation: .named))). \(le.reason.summary)")
+                    .font(Theme.ui(11.5))
+                    .foregroundStyle(Theme.textTertiary)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    private func startCustom() {
-        let raw = model.customDuration
-        guard !raw.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        model.start(raw)
-        model.customDuration = ""
+    // MARK: Active
+
+    private func activeSection(_ s: StatusSnapshot.SessionInfo) -> some View {
+        Card(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Awake for")
+                    .font(Theme.ui(11.5, weight: .medium))
+                    .foregroundStyle(Theme.textTertiary)
+                Text(DurationParser.clock(model.remaining))
+                    .font(Theme.display(34))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                Text(detailText(s))
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            ProgressLine(fraction: model.remainingFraction)
+            HStack(spacing: 6) {
+                ForEach([("+15m", 900.0), ("+1h", 3_600.0), ("+4h", 14_400.0)], id: \.0) { label, secs in
+                    Button(label) { model.extend(secs) }
+                        .buttonStyle(OutlineButtonStyle(accent: true))
+                }
+                Button("Stop") { model.stop() }
+                    .buttonStyle(DangerButtonStyle(expand: true))
+            }
+        }
+    }
+
+    private func detailText(_ s: StatusSnapshot.SessionInfo) -> String {
+        let until = "Until \(s.endsAt.formatted(date: Calendar.current.isDateInToday(s.endsAt) ? .omitted : .abbreviated, time: .shortened))"
+        if let cmd = s.command { return "\(until) · \(cmd.joined(separator: " "))" }
+        switch s.owner.kind {
+        case .app: return until
+        case .cli: return "\(until) · from Terminal"
+        case .run: return "\(until) · lidless run"
+        }
+    }
+
+    private var busyCard: some View {
+        Card {
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text(model.busyText).font(Theme.ui(13)).foregroundStyle(Theme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 110)
+        }
+    }
+
+    // MARK: Messages
+
+    private func errorBanner(_ text: String) -> some View {
+        Card(fill: Theme.dangerWash, stroke: .clear) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(Theme.danger)
+                Text(text)
+                    .font(Theme.ui(12))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                Spacer(minLength: 0)
+                Button { model.dismissError() } label: {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(QuietButtonStyle())
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var warnings: some View {
+        // Readiness problems already have the setup card.
+        let list = (model.snapshot?.warnings ?? []).filter { !$0.hasPrefix("Lidless will not start") }
+        if !list.isEmpty {
+            Card(fill: Theme.warningWash, stroke: .clear, spacing: 8) {
+                ForEach(list, id: \.self) { w in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.warning)
+                        Text(w)
+                            .font(Theme.ui(12))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: Status
 
-    @ViewBuilder
-    private var warningsView: some View {
-        let warnings = (model.snapshot?.warnings ?? []).filter { w in
-            // Readiness problems already have their own card.
-            !(model.readiness.map { !$0.ready } ?? false) || !w.hasPrefix("Lidless will not start")
-        }
-        if model.owner.networkLost {
-            Label("Offline: remote control cannot reach this Mac.", systemImage: "wifi.exclamationmark")
-                .font(.callout)
-                .foregroundStyle(.orange)
-        }
-        ForEach(warnings, id: \.self) { w in
-            Label(w, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var statusRow: some View {
-        HStack(spacing: 14) {
+    private var statusCard: some View {
+        Card(padding: 12, spacing: 9) {
             if let p = model.snapshot?.power {
-                if p.hasBattery {
-                    Label(p.percent.map { "\($0)%" } ?? "?", systemImage: p.onBattery ? batterySymbol(p.percent) : "bolt.fill")
-                } else {
-                    Label("AC", systemImage: "powerplug")
-                }
-                if p.thermal == .serious || p.thermal == .critical {
-                    Label(p.thermal.rawValue.capitalized, systemImage: "thermometer.high").foregroundStyle(.red)
-                }
+                StatusRow(symbol: batterySymbol(p), title: "Battery", value: batteryText(p),
+                          valueColor: batteryLow(p) ? Theme.danger : Theme.textSecondary)
+                Hairline()
             }
-            if let lid = model.snapshot?.lidClosed {
-                Label(lid ? "Lid closed" : "Lid open", systemImage: "laptopcomputer")
-            }
+            StatusRow(symbol: "laptopcomputer", title: "Lid", value: model.snapshot?.lidClosed == true ? "Closed" : "Open")
+            Hairline()
+            StatusRow(symbol: model.online ? "wifi" : "wifi.slash", title: "Network",
+                      value: model.online ? "Online" : "Offline", valueColor: model.online ? Theme.textSecondary : Theme.danger)
+            Hairline()
+            StatusRow(symbol: "terminal", title: "Agents", value: agentsText)
             if model.owner.lowPowerActive {
-                Label("Low Power", systemImage: "leaf")
+                Hairline()
+                StatusRow(symbol: "leaf", title: "Low Power Mode", value: "On while closed")
             }
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
 
-    @ViewBuilder
-    private var agentsView: some View {
-        if !model.agents.isEmpty {
-            let names = Dictionary(grouping: model.agents, by: \.name)
-                .map { $0.value.count > 1 ? "\($0.key) ×\($0.value.count)" : $0.key }
-                .sorted()
-            Label("Agents running: \(names.joined(separator: ", "))", systemImage: "terminal")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private var agentsText: String {
+        guard !model.agents.isEmpty else { return "None running" }
+        return Dictionary(grouping: model.agents, by: \.name)
+            .map { $0.value.count > 1 ? "\($0.key) ×\($0.value.count)" : $0.key }
+            .sorted()
+            .joined(separator: ", ")
+    }
+
+    private func batteryText(_ p: StatusSnapshot.PowerInfo) -> String {
+        guard p.hasBattery else { return "Power adapter" }
+        let level = p.percent.map { "\($0)%" } ?? "Unknown"
+        return p.onBattery ? level : "\(level), charging"
+    }
+
+    private func batteryLow(_ p: StatusSnapshot.PowerInfo) -> Bool {
+        p.hasBattery && p.onBattery && (p.percent ?? 100) < 20
+    }
+
+    private func batterySymbol(_ p: StatusSnapshot.PowerInfo) -> String {
+        guard p.hasBattery else { return "powerplug" }
+        if !p.onBattery { return "bolt" }
+        switch p.percent ?? 0 {
+        case ..<15: return "battery.0percent"
+        case ..<40: return "battery.25percent"
+        case ..<65: return "battery.50percent"
+        case ..<90: return "battery.75percent"
+        default: return "battery.100percent"
         }
     }
+
+    // MARK: Footer
 
     private var footer: some View {
-        HStack {
-            Button(model.showSettings ? "Hide settings" : "Settings…") { model.showSettings.toggle() }
+        HStack(spacing: 0) {
+            Button { model.openSettings() } label: {
+                Label("Settings", systemImage: "gearshape").labelStyle(LightIconLabelStyle())
+            }
+            .buttonStyle(QuietButtonStyle())
+            Button { model.openHelp() } label: {
+                Label("Help", systemImage: "questionmark.circle").labelStyle(LightIconLabelStyle())
+            }
+            .buttonStyle(QuietButtonStyle())
             Spacer()
             Button("Quit") { NSApp.terminate(nil) }
-                .keyboardShortcut("q")
+                .buttonStyle(QuietButtonStyle())
         }
-        .buttonStyle(.borderless)
-        .font(.callout)
+        .padding(.horizontal, -8)
     }
+}
 
-    private func batterySymbol(_ percent: Int?) -> String {
-        guard let p = percent else { return "battery.0percent" }
-        switch p {
-        case ..<13: return "battery.0percent"
-        case ..<38: return "battery.25percent"
-        case ..<63: return "battery.50percent"
-        case ..<88: return "battery.75percent"
-        default: return "battery.100percent"
+/// The ventilation checkpoint shown before a start (first time ever, or
+/// whenever the Mac is already warm).
+struct VentilationCard: View {
+    @Bindable var model: AppModel
+    let seconds: TimeInterval
+
+    var body: some View {
+        let heat = model.thermal
+        Card(fill: heat.isWarm ? Theme.warningWash : Theme.surface, stroke: heat.isWarm ? .clear : Theme.border, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: heat >= .serious ? "thermometer.high" : "thermometer.medium")
+                    .font(.system(size: 20, weight: .light))
+                    .foregroundStyle(heat.isWarm ? Theme.warning : Theme.accent)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(heat.isWarm ? "Your Mac is warm" : "Keep it ventilated")
+                        .font(Theme.display(17, weight: .medium))
+                    Text(heat.startWarning ?? "With the lid closed your Mac keeps working and can get warm. Leave it on a hard, open surface like a desk, never on a bed or sofa, and never in a bag or sleeve.")
+                        .font(Theme.ui(12.5))
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Lidless ends the session by itself if your Mac gets too hot.")
+                        .font(Theme.ui(11.5))
+                        .foregroundStyle(Theme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            HStack(spacing: 8) {
+                Button("Cancel") { model.cancelStart() }
+                    .buttonStyle(OutlineButtonStyle(expand: true))
+                    .keyboardShortcut(.cancelAction)
+                Button("Start \(DurationParser.format(seconds))") { model.confirmStart() }
+                    .buttonStyle(PrimaryButtonStyle(expand: true))
+                    .keyboardShortcut(.defaultAction)
+            }
         }
     }
 }
 
-struct SettingsSection: View {
+/// Thin progress line for the time left.
+struct ProgressLine: View {
+    let fraction: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Theme.surfaceSunken)
+                Capsule()
+                    .fill(Theme.accent)
+                    .frame(width: max(4, proxy.size.width * fraction))
+            }
+        }
+        .frame(height: 4)
+    }
+}
+
+/// SF Symbol at light weight next to the title.
+struct LightIconLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon.font(.system(size: 12, weight: .light))
+            configuration.title
+        }
+    }
+}
+
+/// Shown until the one-time setup is done.
+struct SetupCard: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle("Turn the display off when the lid closes", isOn: $model.config.sleepDisplayOnLidClose)
-            Toggle("Low Power Mode while the lid is closed (on battery)", isOn: $model.config.lowPowerOnLidClose)
-            Toggle("Warn when the network drops", isOn: $model.config.warnOnNetworkLoss)
-            Toggle("Notifications", isOn: $model.config.notifications)
-            Toggle("End on critical temperature", isOn: $model.config.thermalRules)
-            Stepper("Low Power Mode below \(model.config.lowPowerBelowPercent)%", value: $model.config.lowPowerBelowPercent, in: 0...100, step: 5)
-            Stepper(model.config.endBelowPercent == 0 ? "Never end on low battery" : "End below \(model.config.endBelowPercent)% battery",
-                    value: $model.config.endBelowPercent, in: 0...50, step: 5)
-            if model.loginItemAvailable {
-                Toggle("Open at login", isOn: Binding(get: { model.opensAtLogin }, set: { model.opensAtLogin = $0 }))
+        Card(fill: Theme.accentWash, stroke: .clear, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("One-time setup")
+                    .font(Theme.display(16, weight: .medium))
+                Text("Lidless needs permission to switch one sleep setting, and a small helper that switches it back if anything goes wrong.")
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Open log") { model.openLog() }
-                .buttonStyle(.link)
-                .font(.caption)
-            Text("Changes apply to the next session.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let ready = model.readiness {
+                VStack(alignment: .leading, spacing: 5) {
+                    CheckRow(title: "Sleep permission", ok: ready.privilege)
+                    CheckRow(title: "Recovery helper", ok: ready.recoveryArmed)
+                }
+            }
+            if let message = model.setupMessage {
+                Text(message)
+                    .font(Theme.ui(12))
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            HStack(spacing: 8) {
+                Button("Learn more") { model.openHelp() }
+                    .buttonStyle(QuietButtonStyle())
+                    .padding(.leading, -8)
+                Spacer()
+                if model.setupRunning {
+                    ProgressView().controlSize(.small)
+                }
+                Button("Set Up…") { model.runSetup() }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(model.setupRunning)
+            }
         }
-        .toggleStyle(.switch)
-        .controlSize(.small)
-        .onChange(of: model.config) { _, _ in model.saveConfig() }
+    }
+}
+
+struct CheckRow: View {
+    let title: String
+    let ok: Bool?
+
+    var body: some View {
+        HStack(spacing: 7) {
+            switch ok {
+            case .some(true):
+                Image(systemName: "checkmark.circle").foregroundStyle(Theme.success)
+            case .some(false):
+                Image(systemName: "circle").foregroundStyle(Theme.textTertiary)
+            case .none:
+                ProgressView().controlSize(.mini)
+            }
+            Text(title)
+                .font(Theme.ui(12.5))
+                .foregroundStyle(ok == true ? Theme.textSecondary : Theme.text)
+        }
+        .font(.system(size: 13, weight: .light))
+    }
+}
+
+// MARK: - Shared rows
+
+struct ToggleRow: View {
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title).font(Theme.ui(13))
+            Spacer(minLength: 8)
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .tint(Theme.accent)
+        }
+        .frame(minHeight: 22)
+    }
+}
+
+struct StepperRow: View {
+    let title: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let format: (Int) -> String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title).font(Theme.ui(13))
+            Spacer()
+            Text(format(value))
+                .font(Theme.ui(12.5))
+                .monospacedDigit()
+                .foregroundStyle(Theme.textSecondary)
+            HStack(spacing: 0) {
+                stepButton("minus") { value = max(range.lowerBound, value - 5) }
+                Rectangle().fill(Theme.border).frame(width: 1, height: 14)
+                stepButton("plus") { value = min(range.upperBound, value + 5) }
+            }
+            .background(rounded(6).fill(Theme.surface))
+            .overlay(rounded(6).strokeBorder(Theme.border, lineWidth: 1))
+        }
+        .frame(minHeight: 22)
+    }
+
+    private func stepButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(width: 24, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

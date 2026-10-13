@@ -1,0 +1,68 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Lidless",
+  "version": "0.1.0",
+  "identifier": "io.github.manasdutta04.lidless",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Lidless",
+        "url": "index.html",
+        "width": 1000,
+        "height": 680,
+        "minWidth": 1000,
+        "minHeight": 680,
+        "center": true,
+        "visible": false,
+        "resizable": true
+      },
+      {
+        "label": "panel",
+        "title": "Lidless",
+        "url": "panel.html",
+        "width": 320,
+        "height": 420,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "visible": false,
+        "focus": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "appimage", "deb"],
+    "category": "Utility",
+    "shortDescription": "Keep your laptop awake with the lid closed.",
+    "longDescription": "Lidless keeps a laptop awake, with its processes running, after the lid is closed, for a length of time you choose. Made for long-running coding agents.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": { "language": "en-US" },
+      "nsis": { "installMode": "currentUser" }
+    },
+    "linux": {
+      "deb": { "section": "utils" }
+    }
+  }
+}

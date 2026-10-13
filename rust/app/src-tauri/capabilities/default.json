@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The panel and the desktop window talk to the Rust side only.",
+  "windows": ["main", "panel"],
+  "permissions": ["core:default"]
+}

@@ -154,6 +154,22 @@ struct SessionOwnerTests {
         #expect(s.endsAt == h.clock.now.addingTimeInterval(30 * 86_400))
     }
 
+    @Test func refusesToStartWhenCritical() async {
+        let h = Harness()
+        defer { h.cleanup() }
+        h.sensors.thermalLevel = .critical
+        let owner = SessionOwner(env: h.env())
+        await #expect(throws: LidlessError.self) { try await owner.start(duration: 600, kind: .app) }
+        #expect(!h.power.calls.contains("disablesleep 1"))
+    }
+
+    @Test func thermalWarningsEscalate() {
+        #expect(ThermalLevel.nominal.startWarning == nil)
+        #expect(ThermalLevel.fair.isWarm && ThermalLevel.serious.isWarm)
+        #expect(!ThermalLevel.nominal.isWarm)
+        #expect(ThermalLevel.fair < ThermalLevel.critical)
+    }
+
     @Test func tooLongDurationRejected() async {
         let h = Harness()
         defer { h.cleanup() }

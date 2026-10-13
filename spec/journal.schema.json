@@ -2,16 +2,27 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Lidless recovery journal",
   "type": "object",
-  "required": ["version"],
+  "required": [
+    "version"
+  ],
   "properties": {
-    "version": { "const": 1 },
-    "updatedAt": { "type": "string", "format": "date-time" },
+    "version": {
+      "const": 1
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "macos": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "sleepDisabled": { "$ref": "#/$defs/boolEntry" },
-        "lowPowerMode": { "$ref": "#/$defs/boolEntry" }
+        "sleepDisabled": {
+          "$ref": "#/$defs/boolEntry"
+        },
+        "lowPowerMode": {
+          "$ref": "#/$defs/boolEntry"
+        }
       }
     },
     "windows": {
@@ -19,26 +30,72 @@
       "properties": {
         "lidAction": {
           "type": "object",
-          "required": ["scheme", "originalAC", "originalDC", "recordedAt"],
+          "required": [
+            "scheme",
+            "originalAC",
+            "originalDC",
+            "recordedAt"
+          ],
           "properties": {
-            "scheme": { "type": "string" },
-            "originalAC": { "type": "integer" },
-            "originalDC": { "type": "integer" },
-            "recordedAt": { "type": "string", "format": "date-time" }
+            "scheme": {
+              "type": "string"
+            },
+            "originalAC": {
+              "type": "integer"
+            },
+            "originalDC": {
+              "type": "integer"
+            },
+            "recordedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "linux": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "powerProfile": {
+          "type": "object",
+          "required": [
+            "original",
+            "recordedAt"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "original": {
+              "type": "string",
+              "description": "power-profiles-daemon profile to put back, e.g. balanced"
+            },
+            "recordedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         }
       }
-    },
-    "linux": { "type": "object" }
+    }
   },
   "$defs": {
     "boolEntry": {
       "type": "object",
-      "required": ["original", "recordedAt"],
+      "required": [
+        "original",
+        "recordedAt"
+      ],
       "additionalProperties": false,
       "properties": {
-        "original": { "type": "boolean" },
-        "recordedAt": { "type": "string", "format": "date-time" }
+        "original": {
+          "type": "boolean"
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     }
   }

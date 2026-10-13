@@ -14,9 +14,16 @@ with the value it replaced. Schema: [journal.schema.json](journal.schema.json).
   "windows": {
     "lidAction": { "scheme": "GUID", "originalAC": 1, "originalDC": 1, "recordedAt": "..." }
   },
-  "linux": {}
+  "linux": {
+    "powerProfile": { "original": "balanced", "recordedAt": "..." }
+  }
 }
 ```
+
+Linux holds the machine awake with a logind inhibitor, which is not journaled:
+the kernel releases it when the owning process exits, so there is nothing a
+recovery job could restore. Windows journals the lid-close action it changed;
+its power request is likewise released with the process.
 
 An entry's presence means "Lidless may have changed this; put back
 `original`". An empty journal (`{}` sections or no file) means nothing to undo.

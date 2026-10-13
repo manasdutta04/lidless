@@ -1,7 +1,7 @@
 # Lidless help
 
 Something not working? Start here. Every answer below is also at
-[lidless.app/docs](https://lidless.app/docs). If none of it helps,
+[lidless.manasdutta.com/docs](https://lidless.manasdutta.com/docs). If none of it helps,
 [open an issue](https://github.com/manasdutta04/lidless/issues/new) with the
 output of `lidless doctor` and the last lines of your log (see
 [Where things live](#where-things-live)).

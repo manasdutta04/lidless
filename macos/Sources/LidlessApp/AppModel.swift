@@ -430,7 +430,7 @@ final class AppModel {
     }
 
     /// The docs page on the website; mirrors `docs/HELP.md` in the repository.
-    static let docsURL = "https://lidless.app/docs"
+    static let docsURL = "https://lidless.manasdutta.com/docs"
 
     func openHelp() {
         if let url = URL(string: Self.docsURL) {

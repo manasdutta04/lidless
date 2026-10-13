@@ -19,8 +19,8 @@
 </p>
 
 <p align="center">
-  <a href="https://lidless.app">Website</a> ·
-  <a href="https://lidless.app/docs">Docs &amp; help</a> ·
+  <a href="https://lidless.manasdutta.com">Website</a> ·
+  <a href="https://lidless.manasdutta.com/docs">Docs &amp; help</a> ·
   <a href="https://github.com/manasdutta04/lidless/releases">Releases</a> ·
   <a href="https://github.com/manasdutta04/lidless/issues/new">Report an issue</a>
 </p>
@@ -223,7 +223,7 @@ From source (Rust installed): `./rust/scripts/install.sh`.
 ## Help
 
 Something not working? Read [docs/HELP.md](docs/HELP.md), also published at
-[lidless.app/docs](https://lidless.app/docs): install problems, "it still
+[lidless.manasdutta.com/docs](https://lidless.manasdutta.com/docs): install problems, "it still
 slept", reaching the laptop remotely, recovery after a crash, where the files
 are, and what to include in a bug report. In the app: **Help → Lidless Help**.
 

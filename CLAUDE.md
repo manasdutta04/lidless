@@ -318,7 +318,17 @@ especially `lidless run`.)
         Mode on/off with the lid, stop + full restore, force-quit → orphan → stop, expiry, `run` normal exit and Ctrl-C (exit 130) all passed on 2026-10-13 (macOS 27.0.1,
         MacBook Air). Still to run: extend, `run` failure code, app Quit, unattended orphan expiry,
         holder kill, reboot, floors, revert detection, uninstall.
-  - [ ] App icon, Developer ID signing + notarization
+  - [x] App icon from the master artwork `public/lidless-icon.png` (`macos/scripts/make-icon.swift`
+        builds AppIcon.icns, AppIcon-1024.png and LidlessMark.png from it), animated template
+        menu bar glyph, own rounded panel (`StatusPanel.swift`: NSStatusItem + borderless
+        NSPanel, continuous corners on all sides, sized from the content via
+        `onGeometryChange`, top-anchored), desktop Settings window (`SettingsWindow.swift`),
+        Dock icon (optional) with standard app menu
+  - [x] In-app **Set Up…** (admin password dialog) and `lidless setup` / `lidless uninstall`
+  - [x] Release pipeline: `package-release.sh` (universal DMG + zip + SHA256SUMS),
+        `.github/workflows/ci.yml` and `release.yml` (tag `vX.Y.Z`)
+  - [ ] Developer ID signing + notarization (needs a paid Apple account). Until then
+        users run `xattr -cr /Applications/Lidless.app` once.
 - [ ] M2–M6
 
 ### macOS code map
@@ -336,11 +346,18 @@ especially `lidless run`.)
 
 ### Toolchain gotchas (Command Line Tools, no Xcode)
 
+- The app uses a plain AppKit lifecycle (`Sources/LidlessApp/main.swift`), not a SwiftUI `App`.
 - There is no `SwiftUIMacros` plugin, so **`@State` cannot be used** in views. Keep
   view state on the `@Observable` `AppModel` instead. `@Observable` works.
 - The Swift Testing macro plugin fails at random under parallel builds
   ("plugin for module 'TestingMacros' not found"). Use `macos/scripts/test.sh`,
   which retries the build. `@Suite` is avoided for the same reason.
+- `@Environment` works in views (it is not a macro); `@State` does not.
+- On macOS 26+ the Finder/Dock icon follows the user's icon style (Clear/Tinted can
+  render it monochrome). In-app branding uses the bundled full-colour
+  `Resources/LidlessMark.png`, not `NSApp.applicationIconImage`.
+- `swift build --arch arm64 --arch x86_64` works with the CLT and outputs to
+  `.build/out/Products/<Config>`; `build-app.sh` reads `--show-bin-path`.
 - `pmset -g` on macOS 27 omits the `SleepDisabled` line when it has never been
   changed, and prints `SleepDisabled 0` once it has. The parser treats "absent" as 0.
 
@@ -360,3 +377,14 @@ especially `lidless run`.)
 | 2026-10-13 | Lid state is polled once per second from `IOPMrootDomain`/`AppleClamshellState` with a 2-tick debounce instead of an IOKit notification. |
 | 2026-10-13 | The recovery job is the `lidless recover` binary itself (shared Swift code), not a separate shell script. |
 | 2026-10-13 | macOS minimum 14 (MenuBarExtra + Observation). |
+| 2026-10-13 | Distribution: unsigned (ad-hoc) universal DMG + zip on GitHub Releases; users run `xattr -cr` once. Setup moved into the app ("Set Up…") and `lidless setup`; `install.sh` is now build-from-source only. |
+| 2026-10-13 | The sudoers file is written by the root script itself from fixed text (no user-writable temp file), validated with `visudo -cf`, installed `0440 root:wheel`. |
+| 2026-10-13 | Visual language (Claude-like): warm ivory `#FAF9F5` / warm charcoal `#262624` solid panel, white / `#30302E` cards with 1 px borders, one terracotta accent (`#C96442` light, `#D97757` dark). Type: New York serif (`Theme.display`) for headlines and the countdown, SF for UI. Thin monochrome SF Symbols, outlined secondary buttons, solid primary. Flat: **no gradients, no blur/scale effects, no implicit layout animation**. Colours live only in `Theme.swift` (adaptive light/dark). Anthropic's own typefaces are proprietary and are not bundled. |
+| 2026-10-13 | Replaced SwiftUI `MenuBarExtra` with `NSStatusItem` + our own borderless `NSPanel` (material background clipped to a continuous rounded rect). `MenuBarExtra`'s window had square bottom corners and resized from the wrong anchor, making content drift. |
+| 2026-10-13 | Brand: `public/lidless-icon.png` (open laptop forming an "L") is the master for every icon. The menu bar template glyph redraws the same "L" in code; while awake, two signal arcs pulse from inside it. |
+| 2026-10-13 | Heat warning (Hard rule 9) is a start checkpoint, not a dismissible card: confirmation before the first session ever and before every start while thermal ≥ `fair`; start refused at `critical` (enforced in `SessionOwner`, so CLI too); a ventilation line is always visible on the start screen; CLI prints the warning when warm. |
+| 2026-10-13 | Desktop window: opens at 1000×680, resizable and zoomable up to the screen (full screen allowed) but never smaller than 1000×680 (`contentMinSize`/`minSize` plus `windowWillResize` clamp; capped to the screen if it is smaller). Content centred at max 980 pt wide. Overview leads with a featured tip banner (solid deep surface, serif headline, action button, Next tip, paging dots, auto-advance every 12 s, icon cluster on the right edge; context-aware tips first). Sidebar with Overview (read-only: greeting, live status, 6 stat tiles, 12-week heatmap, week chart, hour-of-day chart, context-aware tips), History, Settings, Setup, About & Updates. **Sessions start only from the menu bar panel**; the window, main menu and Dock menu can open the panel or stop a session, never start one. Main menu: Lidless, Session (Open Menu Bar Panel ⇧⌘L, Stop ⌘.), Edit, View (⌥⌘1–5 pages), Window, Help. |
+| 2026-10-13 | Session history (`history.json`, ≤1000 entries) is appended by the owner (with closed-lid seconds) and by recovery; on first read it is backfilled from `lidless.log`. `UsageStats` powers the Overview and `lidless stats`. |
+| 2026-10-13 | Updates: `UpdateChecker` GETs the GitHub latest-release API (daily if `checkForUpdates`, or on demand); Download saves the DMG to ~/Downloads via URLSession (no quarantine flag, so no xattr needed) and opens it. Never installs silently. `lidless update` reports the same. |
+| 2026-10-13 | App shows in the Dock by default (`showInDock`). The menu bar panel holds quick controls only. Dock click, launching from Finder/Launchpad, ⌘, and the panel's Settings button open the desktop Settings window; a login-item launch stays in the menu bar. Closing the window never quits; Quit always ends the session first. |
+| 2026-10-13 | Panel sizing: the content keeps its natural height (`fixedSize`), reports it via `onGeometryChange` on every change (also while open), and is pinned to the top of the window, so it is never centred or clipped at the top. `open()` forces a synchronous layout first so the panel opens at the right size. The window resizes with its top edge fixed. Verified live with the DEBUG `LIDLESS_PANEL_CHECK` run (open → busy → idle → taller → shorter → reopen). Earlier attempts (GeometryReader-only, `invalidateIntrinsicContentSize`) missed changes and clipped or gapped the panel. |

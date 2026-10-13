@@ -327,6 +327,7 @@ especially `lidless run`.)
   - [x] In-app **Set Up…** (admin password dialog) and `lidless setup` / `lidless uninstall`
   - [x] Release pipeline: `package-release.sh` (universal DMG + zip + SHA256SUMS),
         `.github/workflows/ci.yml` and `release.yml` (tag `vX.Y.Z`)
+  - [x] **v0.1.0 released 2026-10-13** (DMG + zip + checksums via the Release workflow).
   - [ ] Developer ID signing + notarization (needs a paid Apple account). Until then
         users run `xattr -cr /Applications/Lidless.app` once.
 - [x] **M2/M3/M6 code: Rust workspace `rust/`** (2026-10-13), compile-checked for
@@ -343,6 +344,9 @@ especially `lidless run`.)
   - [x] `rust/app`: Tauri 2 tray app (panel + window, same design) — see rust/app/README.md.
   - [x] CI `.github/workflows/rust.yml`; release `.github/workflows/release-windows-linux.yml`
         (MSI/NSIS, AppImage/.deb, CLI archives, attached to the same `vX.Y.Z` release).
+  - [x] **v0.1.0 released 2026-10-13**: GitHub Actions built the Tauri app and CLI natively on
+        Windows x64, Linux x64 and Linux arm64 (first native compile of the engines) and
+        attached MSI/NSIS, AppImage/.deb and CLI archives beside the macOS DMG.
   - [ ] **Not validated on real Windows/Linux hardware.** Checklist and the open
         questions to answer: `docs/windows-linux-validation.md`.
 - [ ] M4 remainder (agent hooks), M5 polish
@@ -428,5 +432,6 @@ checking the engine crates directly (they depend on core without defaults). Some
 | 2026-10-13 | Rust engine contract: `engage()` journals + changes and returns an `AwakeHold`; the owner verifies after the settle delay. Windows: lid action "Do nothing" (journaled) + `PowerRequestSystemRequired`; thermal unknown → nominal; Battery saver untouched. Linux: logind `handle-lid-switch:sleep:idle` block inhibitor (not journaled, kernel-released) + journaled power-profile switch; thermal from the hottest `thermal_zone` at 75/85/95 °C. |
 | 2026-10-13 | Windows elevation: no sudoers equivalent, so setup registers (one UAC prompt) a highest-privilege Task Scheduler task that applies lid-action values from a request file; used only when the direct Power API write is refused. Same trade-off as the macOS sudoers rule, documented in the README. |
 | 2026-10-13 | Recovery jobs: Windows `schtasks` MINUTE + ONLOGON tasks; Linux systemd user timer `lidless-recover.timer`. Both run `lidless recover` as the user. |
+| 2026-10-13 | Release workflows: the macOS workflow creates the GitHub release on a `vX.Y.Z` tag; the Windows/Linux workflow waits for it and uploads its assets, and also accepts `workflow_dispatch` with a `tag` input so a fixed workflow can rebuild an existing tag without moving it. Clippy lints that only trigger on native targets are caught with `cargo clippy -p <engine> --target <triple>` from macOS. |
 | 2026-10-13 | App shows in the Dock by default (`showInDock`). The menu bar panel holds quick controls only. Dock click, launching from Finder/Launchpad, ⌘, and the panel's Settings button open the desktop Settings window; a login-item launch stays in the menu bar. Closing the window never quits; Quit always ends the session first. |
 | 2026-10-13 | Panel sizing: the content keeps its natural height (`fixedSize`), reports it via `onGeometryChange` on every change (also while open), and is pinned to the top of the window, so it is never centred or clipped at the top. `open()` forces a synchronous layout first so the panel opens at the right size. The window resizes with its top edge fixed. Verified live with the DEBUG `LIDLESS_PANEL_CHECK` run (open → busy → idle → taller → shorter → reopen). Earlier attempts (GeometryReader-only, `invalidateIntrinsicContentSize`) missed changes and clipped or gapped the panel. |

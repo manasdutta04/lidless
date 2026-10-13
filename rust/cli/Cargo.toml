@@ -1,0 +1,24 @@
+[package]
+name = "lidless"
+description = "Keep your laptop awake with the lid closed while your coding agents work"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "lidless"
+path = "src/main.rs"
+
+[features]
+default = ["updates"]
+updates = ["lidless-core/updates"]
+
+[dependencies]
+lidless-core.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+lidless-windows.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+lidless-linux.workspace = true

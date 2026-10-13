@@ -1,0 +1,51 @@
+name: Rust
+
+on:
+  push:
+    branches: [main]
+    paths: ["rust/**", "spec/**", ".github/workflows/rust.yml"]
+  pull_request:
+    paths: ["rust/**", "spec/**", ".github/workflows/rust.yml"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  core:
+    name: Core tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15]
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Linux build deps (D-Bus)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+      - name: Test the shared core against spec/vectors
+        run: cargo test -p lidless-core
+      - name: Build the CLI
+        run: cargo build -p lidless --release
+      - name: CLI smoke test (fake-safe commands only)
+        shell: bash
+        env:
+          LIDLESS_HOME: ${{ runner.temp }}/lidless-home
+        run: |
+          ./target/release/lidless version
+          ./target/release/lidless --json status | head -5
+          ./target/release/lidless doctor || true
+      - name: Clippy
+        run: cargo clippy --workspace --exclude lidless-app --all-targets -- -D warnings
+      - name: Format
+        run: cargo fmt --all -- --check

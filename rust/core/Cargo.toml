@@ -1,0 +1,36 @@
+[package]
+name = "lidless-core"
+description = "Shared Lidless logic: sessions, journal, floors, history, recovery, CLI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+fs2.workspace = true
+tempfile.workspace = true
+ureq = { workspace = true, optional = true }
+sysinfo.workspace = true
+notify-rust.workspace = true
+ctrlc.workspace = true
+dirs.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_SystemInformation", "Win32_Storage_FileSystem", "Win32_Security"] }
+
+[features]
+# The GitHub release check (pulls in a TLS stack). Off only for cross-target
+# `cargo check` on hosts without a cross C compiler.
+default = ["updates"]
+updates = ["dep:ureq"]
+
+[dev-dependencies]
+uuid.workspace = true

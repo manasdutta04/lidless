@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = ["core", "windows", "linux", "cli", "app/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/manasdutta04/lidless"
+
+[workspace.dependencies]
+lidless-core = { path = "core", default-features = false }
+lidless-windows = { path = "windows" }
+lidless-linux = { path = "linux" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde", "clock"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+fs2 = "0.4"
+tempfile = "3"
+ureq = { version = "2", features = ["json"] }
+sysinfo = "0.33"
+notify-rust = "4"
+libc = "0.2"
+ctrlc = { version = "3", features = ["termination"] }
+dirs = "6"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

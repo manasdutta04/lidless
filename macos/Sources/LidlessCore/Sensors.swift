@@ -2,8 +2,32 @@ import Foundation
 import IOKit
 import IOKit.ps
 
-public enum ThermalLevel: String, Codable, Sendable {
+public enum ThermalLevel: String, Codable, Sendable, Comparable {
     case nominal, fair, serious, critical
+
+    private var rank: Int {
+        switch self {
+        case .nominal: return 0
+        case .fair: return 1
+        case .serious: return 2
+        case .critical: return 3
+        }
+    }
+
+    public static func < (a: ThermalLevel, b: ThermalLevel) -> Bool { a.rank < b.rank }
+
+    /// Warm enough that the user should be reminded about ventilation.
+    public var isWarm: Bool { self >= .fair }
+
+    /// Plain-language heat warning for the start flow, or nil when cool.
+    public var startWarning: String? {
+        switch self {
+        case .nominal: return nil
+        case .fair: return "Your Mac is already warm. Closing the lid holds in more heat, so keep it on a hard, open surface."
+        case .serious: return "Your Mac is running hot. Closing the lid holds in more heat. Make sure it has open air around it, and consider waiting until it cools down."
+        case .critical: return "Your Mac is too hot to keep running with the lid closed. Let it cool down first."
+        }
+    }
 
     public init(_ state: ProcessInfo.ThermalState) {
         switch state {

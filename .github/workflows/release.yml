@@ -1,0 +1,58 @@
+name: Release
+
+# Push a tag like v0.2.0 (matching Sources/LidlessCore/Version.swift) to build
+# a universal Lidless.app and publish the DMG, zip and checksums.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: macos
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches version
+        run: |
+          VERSION="$(sed -n 's/.*string = "\(.*\)".*/\1/p' Sources/LidlessCore/Version.swift)"
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Test
+        run: ./scripts/test.sh
+
+      - name: Package
+        run: ./scripts/package-release.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cat > notes.md <<EOF
+          ## Install
+
+          1. Download **Lidless-$VERSION.dmg** and drag **Lidless** to **Applications**.
+          2. Lidless is not notarized by Apple yet, so run this once in Terminal:
+
+             \`\`\`
+             xattr -cr /Applications/Lidless.app
+             \`\`\`
+
+          3. Open Lidless (it lives in the menu bar) and click **Set Up…**. macOS asks for your password once.
+
+          Keep the Mac on a ventilated surface while the lid is closed. Never in a bag.
+
+          Checksums are in \`SHA256SUMS.txt\`.
+          EOF
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/Lidless-$VERSION.dmg" "dist/Lidless-$VERSION.zip" dist/SHA256SUMS.txt \
+            --title "Lidless $VERSION" --notes-file notes.md

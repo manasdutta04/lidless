@@ -153,6 +153,15 @@ public struct Recovery: Sendable {
             let report = await changes.restoreAllLocked()
             let detail = report.complete ? nil : report.failures.joined(separator: "; ")
             try? store.writeLastEnd(LastEnd(sessionID: sessionID, reason: reason, at: now, restoreComplete: report.complete, detail: detail))
+            if case .some(let s) = session {
+                // Ended without its owner: the end time is when the session was
+                // due (or now, if earlier), and closed-lid time is unknown.
+                History.appendLocked(HistoryEntry(
+                    id: s.id, startedAt: s.startedAt, endedAt: min(now, s.endsAt), reason: reason,
+                    closedLidSeconds: 0, owner: s.owner.kind, command: s.command,
+                    restoreComplete: report.complete
+                ), store: store)
+            }
             let msg = "Ended the session (\(reason.rawValue)): \(reason.summary)" + (report.complete ? "" : " Restore incomplete: \(detail ?? "")")
             Log.info("recovery: \(msg)")
             return RecoveryOutcome(action: action, report: report, message: msg)

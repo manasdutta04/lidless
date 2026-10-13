@@ -123,6 +123,8 @@ public final class SessionOwner {
     private var lidCandidateTicks = 0
     private var lowPowerFailureNotified = false
     private var network: NetworkWatcher?
+    private var lidClosedSince: Date?
+    private var closedLidSeconds: TimeInterval = 0
 
     static let floorEveryTicks = 15
     static let verifyEveryTicks = 60
@@ -162,6 +164,12 @@ public final class SessionOwner {
         guard duration > 0 else { throw LidlessError.usage("Duration must be greater than zero.") }
         guard duration <= config.maxDurationSeconds else {
             throw LidlessError.usage("The longest session is \(DurationParser.format(config.maxDurationSeconds)).")
+        }
+
+        // Never start into a critical thermal state: the floor would end the
+        // session at once, and closing the lid would trap more heat.
+        if config.thermalRules && env.sensors.thermal() == .critical {
+            throw LidlessError.notReady(ThermalLevel.critical.startWarning!)
         }
 
         // Hard rule 2: never start unless recovery is armed.
@@ -239,6 +247,8 @@ public final class SessionOwner {
         unreadableBattery = 0
         lidClosed = env.sensors.lidClosed()
         lidCandidate = lidClosed
+        closedLidSeconds = 0
+        lidClosedSince = lidClosed == true ? env.now() : nil
         lowPowerFailureNotified = false
         networkLost = false
         warnings = []
@@ -295,9 +305,12 @@ public final class SessionOwner {
         if updateLid() {
             runFloors = true
             if lidClosed == true {
+                lidClosedSince = now
                 Log.info("lid closed")
                 if config.sleepDisplayOnLidClose { await env.power.sleepDisplayNow() }
             } else {
+                if let since = lidClosedSince { closedLidSeconds += now.timeIntervalSince(since) }
+                lidClosedSince = nil
                 Log.info("lid opened")
             }
         }
@@ -434,6 +447,13 @@ public final class SessionOwner {
                 detail: [detail, report.complete ? nil : "Restore incomplete: \(failureText)"].compactMap { $0 }.joined(separator: " ").nilIfEmpty
             )
             try? env.store.writeLastEnd(le)
+            if let since = lidClosedSince { closedLidSeconds += le.at.timeIntervalSince(since) }
+            lidClosedSince = nil
+            History.append(HistoryEntry(
+                id: s.id, startedAt: s.startedAt, endedAt: le.at, reason: reason,
+                closedLidSeconds: closedLidSeconds, owner: s.owner.kind, command: s.command,
+                restoreComplete: report.complete
+            ), store: env.store)
             Log.info("session \(s.id) ended: \(reason.rawValue)\(detail.map { " (\($0))" } ?? ""); restore complete=\(report.complete)")
             sleepOutcome = nil
             lowPowerActive = false

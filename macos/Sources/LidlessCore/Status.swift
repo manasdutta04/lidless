@@ -63,7 +63,7 @@ public struct StatusSnapshot: Codable, Sendable, Equatable {
                 command: s.command, stopRequested: s.stopRequested
             )
             if !alive {
-                warnings.append("The process that owned this session (pid \(s.owner.pid)) is gone. The recovery agent keeps the Mac awake until \(s.endsAt.formatted(date: .abbreviated, time: .shortened)) and enforces the battery and thermal floors. Stop ends it now.")
+                warnings.append("The process that started this session quit unexpectedly. The Mac stays awake until \(s.endsAt.formatted(date: .omitted, time: .shortened)), with the battery and heat limits still enforced. Stop ends it now.")
             }
         }
 

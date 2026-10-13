@@ -186,7 +186,7 @@ public struct JournaledChanges: Sendable {
         }
         let err = r.stderr.trimmed
         if err.contains("password is required") || err.contains("a terminal is required") {
-            return "`\(command)` needs a password, so the Lidless sudoers rule is missing or out of date. Run scripts/install.sh, then `lidless doctor`."
+            return "`\(command)` needs a password, so the Lidless sudoers rule is missing or out of date. Click Set Up in the Lidless menu or run `lidless setup`."
         }
         return "`\(command)` failed (status \(r.status))\(err.isEmpty ? "" : ": \(err)")"
     }

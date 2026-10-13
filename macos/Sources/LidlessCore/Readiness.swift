@@ -23,7 +23,7 @@ public struct ReadinessReport: Sendable, Equatable, Codable {
             problems.append("the recovery agent is not armed (\(recoveryDetail))")
         }
         guard !problems.isEmpty else { return nil }
-        return .notReady("Lidless will not start because " + problems.joined(separator: " and ") + ". Run macos/scripts/install.sh, then `lidless doctor`.")
+        return .notReady("Lidless will not start because " + problems.joined(separator: " and ") + ". Click Set Up in the Lidless menu, or run `lidless setup`.")
     }
 }
 

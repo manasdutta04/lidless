@@ -1,0 +1,14 @@
+{
+  "valid": [
+    { "input": "2h", "seconds": 7200 },
+    { "input": "90m", "seconds": 5400 },
+    { "input": "1d2h", "seconds": 93600 },
+    { "input": "1h 30m", "seconds": 5400 },
+    { "input": "1D2H3M4S", "seconds": 93784 },
+    { "input": "45", "seconds": 2700 },
+    { "input": " 30m ", "seconds": 1800 },
+    { "input": "30s", "seconds": 30 },
+    { "input": "30d", "seconds": 2592000 }
+  ],
+  "invalid": ["", " ", "0m", "0", "2x", "1m2h", "1h1h", "-5m", "1.5h", "h", "2h3", "abc", "1d 2x"]
+}

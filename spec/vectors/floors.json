@@ -1,0 +1,169 @@
+{
+  "defaultConfig": {
+    "lowPowerBelowPercent": 40,
+    "endBelowPercent": 10,
+    "thermalRules": true,
+    "lowPowerOnLidClose": true
+  },
+  "cases": [
+    {
+      "name": "on AC ignores battery",
+      "onBattery": false,
+      "percent": 5,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": false
+    },
+    {
+      "name": "healthy battery lid open",
+      "onBattery": true,
+      "percent": 80,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": false
+    },
+    {
+      "name": "healthy battery lid closed",
+      "onBattery": true,
+      "percent": 80,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": true,
+      "end": null,
+      "wantLowPower": true
+    },
+    {
+      "name": "below low power floor",
+      "onBattery": true,
+      "percent": 39,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": true
+    },
+    {
+      "name": "at low power floor",
+      "onBattery": true,
+      "percent": 40,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": false
+    },
+    {
+      "name": "below end floor",
+      "onBattery": true,
+      "percent": 9,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": "batteryFloor",
+      "wantLowPower": true
+    },
+    {
+      "name": "at end floor",
+      "onBattery": true,
+      "percent": 10,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": true
+    },
+    {
+      "name": "one unreadable read tolerated",
+      "onBattery": true,
+      "percent": null,
+      "unreadable": 1,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": false
+    },
+    {
+      "name": "two unreadable reads end",
+      "onBattery": true,
+      "percent": null,
+      "unreadable": 2,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": "batteryUnreadable",
+      "wantLowPower": false
+    },
+    {
+      "name": "serious thermal on AC: no low power (battery profile only)",
+      "onBattery": false,
+      "percent": 90,
+      "unreadable": 0,
+      "thermal": "serious",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": false
+    },
+    {
+      "name": "serious thermal on battery wants low power",
+      "onBattery": true,
+      "percent": 90,
+      "unreadable": 0,
+      "thermal": "serious",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": true
+    },
+    {
+      "name": "critical thermal ends",
+      "onBattery": false,
+      "percent": 90,
+      "unreadable": 0,
+      "thermal": "critical",
+      "lidClosed": false,
+      "end": "thermalFloor",
+      "wantLowPower": false
+    },
+    {
+      "name": "thermal rules off",
+      "onBattery": false,
+      "percent": 90,
+      "unreadable": 0,
+      "thermal": "critical",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": false,
+      "config": {
+        "thermalRules": false
+      }
+    },
+    {
+      "name": "end floor zero disables end",
+      "onBattery": true,
+      "percent": 2,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": false,
+      "end": null,
+      "wantLowPower": true,
+      "config": {
+        "endBelowPercent": 0
+      }
+    },
+    {
+      "name": "lid close low power off",
+      "onBattery": true,
+      "percent": 80,
+      "unreadable": 0,
+      "thermal": "nominal",
+      "lidClosed": true,
+      "end": null,
+      "wantLowPower": false,
+      "config": {
+        "lowPowerOnLidClose": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+name: Release (Windows and Linux)
+
+# Runs on the same `vX.Y.Z` tag as the macOS release workflow and attaches the
+# Windows and Linux installers to that GitHub release. Asset names follow
+# `rust/core/src/update.rs::asset_suffix`, which the in-app updater looks for:
+#   Lidless-X.Y.Z-windows-x64.msi, Lidless-X.Y.Z-linux-x64.AppImage,
+#   Lidless-X.Y.Z-linux-arm64.AppImage, plus .deb packages and CLI zips.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch: windows-x64
+          - name: Linux x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            arch: linux-x64
+          - name: Linux arm64
+            os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: linux-arm64
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches the Cargo version
+        shell: bash
+        run: |
+          VERSION="$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')"
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match rust/Cargo.toml version $VERSION" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Linux build deps (Tauri, D-Bus)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libdbus-1-dev pkg-config build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev
+
+      - name: Test the core
+        run: cargo test -p lidless-core --target ${{ matrix.target }}
+
+      - name: Build the CLI
+        run: cargo build -p lidless --release --target ${{ matrix.target }}
+
+      - name: Bundle the CLI beside the app (Tauri externalBin)
+        shell: bash
+        run: |
+          mkdir -p app/src-tauri/binaries
+          EXT=""; [ "${{ runner.os }}" = "Windows" ] && EXT=".exe"
+          cp "target/${{ matrix.target }}/release/lidless$EXT" "app/src-tauri/binaries/lidless-${{ matrix.target }}$EXT"
+
+      - name: Build the tray app
+        working-directory: rust/app
+        shell: bash
+        run: |
+          npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+          # The default config has no externalBin so macOS preview builds work
+          # without the CLI; the release adds it here.
+          npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} \
+            --config '{"bundle":{"externalBin":["binaries/lidless"]}}'
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=dist && mkdir -p "$OUT"
+          T=target/${{ matrix.target }}/release
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "$T"/bundle/msi/*.msi "$OUT/Lidless-$VERSION-${{ matrix.arch }}.msi"
+            cp "$T"/bundle/nsis/*.exe "$OUT/Lidless-$VERSION-${{ matrix.arch }}-setup.exe" || true
+            7z a "$OUT/lidless-cli-$VERSION-${{ matrix.arch }}.zip" "./$T/lidless.exe"
+          else
+            cp "$T"/bundle/appimage/*.AppImage "$OUT/Lidless-$VERSION-${{ matrix.arch }}.AppImage"
+            cp "$T"/bundle/deb/*.deb "$OUT/Lidless-$VERSION-${{ matrix.arch }}.deb" || true
+            tar -C "$T" -czf "$OUT/lidless-cli-$VERSION-${{ matrix.arch }}.tar.gz" lidless
+          fi
+          ls -la "$OUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}
+          path: rust/dist/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS-windows-linux.txt && cat SHA256SUMS-windows-linux.txt
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The macOS workflow creates the release; wait for it, then upload.
+          for i in $(seq 1 30); do
+            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            sleep 20
+          done
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Lidless ${GITHUB_REF_NAME#v}" --notes "See the macOS job for install notes."
+          gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber

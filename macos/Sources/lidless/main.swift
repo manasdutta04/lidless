@@ -78,7 +78,11 @@ Usage:
   lidless status                         Show the current session and warnings
   lidless doctor                         Check that everything is set up
   lidless agents                         List detected coding agents
+  lidless stats                          Your usage: time awake, closed-lid time, sessions
+  lidless update                         Check GitHub for a newer release
   lidless config [<key> [<value>]]       Show or change settings
+  lidless setup                          One-time setup: recovery agent + sleep permission (asks for your password)
+  lidless uninstall                      Restore settings and remove the agent, permission and CLI link
   lidless recover                        Run recovery once (the launchd agent does this every minute)
   lidless version
 
@@ -94,10 +98,19 @@ struct StartedJSON: Encodable {
 }
 
 /// `start`: spawn a detached holder that owns the session, wait for its verdict.
+/// Heat reminder before every start; a critical state is refused by the core.
+func warnIfWarm() {
+    let heat = sensors.thermal()
+    if heat.isWarm, heat != .critical, let warning = heat.startWarning {
+        eprint("lidless: ⚠︎ \(warning)")
+    }
+}
+
 @MainActor func cmdStart(_ args: [String]) async -> Never {
     guard args.count == 1 else { fail(LidlessError.usage("Usage: lidless start <duration>")) }
     let seconds: TimeInterval
     do { seconds = try DurationParser.parse(args[0]) } catch { fail(error) }
+    warnIfWarm()
 
     guard let exe = Bundle.main.executablePath else { fail(LidlessError.system("Cannot find the lidless executable path.")) }
     let holder = Process()
@@ -211,6 +224,7 @@ final class ChildState: @unchecked Sendable {
     let child = ChildState()
     owner.externalEndCheck = { child.exited ? .commandExited : nil }
 
+    warnIfWarm()
     eprint("lidless: engaging and verifying…")
     do {
         try await owner.start(duration: duration, kind: .run, command: command)
@@ -371,7 +385,7 @@ struct DoctorJSON: Encodable {
     var checks: [DoctorCheck] = []
     let ready = await readiness.check()
     checks.append(DoctorCheck(name: "privilege", ok: ready.privilege,
-                              detail: ready.privilege ? "sudoers rule allows the pmset commands without a password" : "sudo would ask for a password; run macos/scripts/install.sh"))
+                              detail: ready.privilege ? "sudoers rule allows the pmset commands without a password" : "sudo would ask for a password; run `lidless setup` or click Set Up in the menu"))
     checks.append(DoctorCheck(name: "recovery agent", ok: ready.recoveryArmed, detail: ready.recoveryDetail))
 
     var homeOK = true
@@ -500,6 +514,109 @@ struct RecoverJSON: Encodable {
     }
 }
 
+/// The real path of this binary (resolving the ~/.local/bin link).
+func selfPath() -> String {
+    let raw = Bundle.main.executablePath ?? CommandLine.arguments[0]
+    return URL(fileURLWithPath: raw).resolvingSymlinksInPath().path
+}
+
+struct InstallerJSON: Encodable {
+    var ok = true
+    var steps: [String]
+    var warnings: [String]
+}
+
+@MainActor func cmdSetup() async -> Never {
+    let cli = selfPath()
+    if cli.contains("/.build/") {
+        eprint("lidless: note: setting up with a development build at \(cli). The recovery agent will point there.")
+    }
+    if await power.privilegeReady() {
+        say("Setting up Lidless.")
+    } else {
+        say("Setting up Lidless. sudo will ask for your password once, to allow exactly four pmset commands.")
+    }
+    do {
+        let report = try await Installer.setup(cliPath: cli, power: power, elevation: .terminalSudo)
+        emitJSON(InstallerJSON(steps: report.steps, warnings: report.warnings))
+        for s in report.steps { say("✓ \(s)") }
+        for w in report.warnings { say("⚠︎ \(w)") }
+        if !Installer.isOnPath(Installer.cliLink.deletingLastPathComponent()) {
+            say("Note: ~/.local/bin is not on your PATH. Add to your shell profile: export PATH=\"$HOME/.local/bin:$PATH\"")
+        }
+        say("Ready. Try: lidless start 2h  (keep the Mac on a ventilated surface)")
+        finish()
+    } catch {
+        fail(error)
+    }
+}
+
+@MainActor func cmdUninstall() async -> Never {
+    let env = OwnerEnvironment.live(paths: paths, notifier: NoopNotifier())
+    do {
+        let report = try await Installer.uninstall(env: env, elevation: .terminalSudo)
+        emitJSON(InstallerJSON(steps: report.steps, warnings: report.warnings))
+        for s in report.steps { say("✓ \(s)") }
+        say("To finish, move Lidless.app to the Trash. Your state and logs stay in \(paths.home.path).")
+        finish()
+    } catch {
+        fail(error)
+    }
+}
+
+@MainActor func cmdStats() -> Never {
+    History.backfillFromLogIfNeeded(store)
+    let stats = UsageStats.compute(History.read(store))
+    if jsonOutput {
+        emitJSON(stats)
+        finish()
+    }
+    guard stats.sessions > 0 else {
+        print("No sessions yet. Start one with: lidless start 2h")
+        finish()
+    }
+    let f = DurationParser.format
+    print("Sessions             \(stats.sessions)")
+    print("Time awake           \(f(stats.totalAwakeSeconds))")
+    print("With the lid closed  \(f(stats.closedLidSeconds))")
+    print("This week            \(f(stats.thisWeekSeconds))")
+    print("Longest session      \(f(stats.longestSeconds))")
+    print("Average session      \(f(stats.averageSeconds))")
+    if let pct = stats.cleanRestorePercent { print("Restored cleanly     \(pct)%") }
+    if stats.endedBySafety > 0 { print("Ended by safety      \(stats.endedBySafety)") }
+    finish()
+}
+
+struct UpdateJSON: Encodable {
+    var current: String
+    var latest: String?
+    var updateAvailable: Bool
+    var downloadURL: String?
+    var pageURL: String?
+}
+
+@MainActor func cmdUpdate() async -> Never {
+    do {
+        switch try await UpdateChecker.check() {
+        case .noReleases:
+            emitJSON(UpdateJSON(current: LidlessVersion.string, latest: nil, updateAvailable: false))
+            say("Lidless \(LidlessVersion.string). No releases have been published yet.")
+        case .upToDate(let latest):
+            emitJSON(UpdateJSON(current: LidlessVersion.string, latest: latest, updateAvailable: false))
+            say("Lidless \(LidlessVersion.string) is up to date.")
+        case .available(let r):
+            emitJSON(UpdateJSON(current: LidlessVersion.string, latest: r.version, updateAvailable: true,
+                                downloadURL: r.downloadURL?.absoluteString, pageURL: r.pageURL.absoluteString))
+            say("Lidless \(r.version) is available (you have \(LidlessVersion.string)).")
+            say("Download: \((r.downloadURL ?? r.pageURL).absoluteString)")
+            say("Or open the Lidless app and choose Lidless → Check for Updates…")
+        }
+        finish()
+    } catch {
+        fail(LidlessError.system("Could not check for updates: \(error.localizedDescription)"))
+    }
+}
+
 // MARK: - Dispatch
 
 guard let command = arguments.first else {
@@ -517,7 +634,11 @@ case "stop": await cmdStop()
 case "status": await cmdStatus()
 case "doctor": await cmdDoctor()
 case "recover": await cmdRecover()
+case "setup", "install": await cmdSetup()
+case "uninstall": await cmdUninstall()
 case "agents": cmdAgents()
+case "stats": cmdStats()
+case "update": await cmdUpdate()
 case "config": cmdConfig(rest)
 case "version", "--version", "-v":
     print("lidless \(LidlessVersion.string)")

@@ -1,0 +1,14 @@
+[package]
+name = "lidless-linux"
+description = "Lidless engine for Linux: logind inhibitor, power profiles, systemd user timer recovery"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lidless-core = { workspace = true, default-features = false }
+chrono.workspace = true
+dirs.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }

@@ -1,3 +1,5 @@
+<p align="center"><img src="public/lidless-icon.png" width="128" alt="Lidless icon"></p>
+
 # Lidless
 
 Close the lid. Your agent keeps working.
@@ -22,6 +24,9 @@ every setting back the way it was.
 
 > **⚠️ Heat:** with the lid closed your laptop keeps running and can get warm.
 > Leave it on a hard, ventilated surface. **Never run it in a bag or sleeve.**
+> Lidless asks you to confirm this before your first session and again whenever
+> your Mac is already warm, and it refuses to start while the Mac is critically
+> hot.
 
 Platforms: **macOS 14+** today. Windows and Linux are planned.
 
@@ -29,8 +34,45 @@ Platforms: **macOS 14+** today. Windows and Linux are planned.
 
 ## Install (macOS)
 
-Requirements: macOS 14 or later, and Swift 6 (Xcode or the Command Line Tools:
-`xcode-select --install`).
+Requires macOS 14 or later, on Apple silicon or Intel.
+
+1. Download **Lidless-x.y.z.dmg** from the
+   [latest release](https://github.com/manasdutta04/lidless/releases/latest)
+   and drag **Lidless** into **Applications**.
+2. Lidless is free and open source, and not notarized by Apple. macOS blocks
+   apps like that on first launch, so run this **once** in Terminal:
+
+   ```bash
+   xattr -cr /Applications/Lidless.app
+   ```
+
+   (This removes the "downloaded from the internet" flag. You can also
+   right-click the app, choose **Open**, and confirm.)
+3. Open **Lidless**. It lives in the menu bar and the Dock. Click **Set Up…**
+   and enter your password once. That installs:
+   - permission to run [four exact `pmset` commands](#privileged-commands)
+     without a password, and
+   - a small background helper that restores your settings if anything goes
+     wrong.
+
+   It also links the `lidless` command to `~/.local/bin/lidless`.
+
+That's it. Pick a duration, close the lid.
+
+Sessions start from the **menu bar panel** (click the Lidless icon), which also
+extends and stops them. Opening Lidless from the Dock or Applications (or
+pressing ⌘,) opens its window: **Overview** (your stats, a 12-week activity
+heatmap, this week, when your Mac works, and tips), **History**, **Settings**,
+**Setup** and **About & Updates**. The window is for information and settings;
+it can stop a running session (Session → Stop, ⌘.) but never starts one. Closing the window keeps Lidless running
+in the menu bar; only **Quit** (⌘Q, the Dock's Quit, or Quit in the panel)
+exits, and quitting always ends the session and restores your settings.
+"Show in Dock" can be turned off in settings.
+
+**From the command line instead:** after step 2, run
+`/Applications/Lidless.app/Contents/Helpers/lidless setup`.
+
+**Build from source** (needs Swift 6: Xcode or `xcode-select --install`):
 
 ```bash
 git clone https://github.com/manasdutta04/lidless.git
@@ -38,24 +80,10 @@ cd lidless
 ./macos/scripts/install.sh
 ```
 
-The installer:
-
-1. builds `Lidless.app` and copies it to `~/Applications`,
-2. links the CLI to `~/.local/bin/lidless`,
-3. installs a narrow sudoers rule (asks for your password once, see
-   [Privileged commands](#privileged-commands)),
-4. installs the recovery agent (a per-user LaunchAgent), and
-5. runs `lidless doctor` to confirm everything works.
-
-Open **Lidless** from `~/Applications`. It lives in the menu bar (moon icon
-when idle, sun and countdown while awake).
-
-To uninstall (restores settings first, then removes everything):
-
-```bash
-./macos/scripts/uninstall.sh          # keep logs and state
-./macos/scripts/uninstall.sh --purge  # remove those too
-```
+**Uninstall:** Settings → **Uninstall…** (or `lidless uninstall`) restores
+everything and removes the permission and helper. Then move Lidless.app to
+the Trash. From a source checkout, `./macos/scripts/uninstall.sh` does all of
+it (`--purge` also deletes logs and state).
 
 ## Use
 
@@ -68,7 +96,11 @@ lidless status                # what is going on (add --json for scripts)
 lidless stop                  # end now and restore normal sleep
 lidless doctor                # check setup
 lidless agents                # list detected coding agents
+lidless stats                 # your usage: time awake, closed-lid time, sessions
+lidless update                # check for a newer release
 lidless config                # show settings; `lidless config endBelowPercent 15` to change
+lidless setup                 # one-time setup (same as the Set Up button)
+lidless uninstall             # restore and remove the permission and helper
 ```
 
 `lidless start` hands the session to a small background process, so you can
@@ -125,7 +157,8 @@ that state folder, not the app. It:
 ## Privileged commands
 
 Lidless runs exactly these commands as root, through `sudo -n`, allowed by
-`/etc/sudoers.d/lidless` for your user only:
+`/etc/sudoers.d/lidless` for your user only. Setup writes that file from
+fixed text, checks it with `visudo`, and installs it as `root:wheel 0440`:
 
 ```
 /usr/bin/pmset -a disablesleep 1    # keep running with the lid closed
@@ -144,19 +177,29 @@ signed privileged helper will replace the sudoers rule in a later release.
 
 ## Privacy and files
 
-Everything stays on your Mac. No telemetry, no accounts. State lives in
+Everything stays on your Mac. No telemetry, no accounts. The only network
+request is the update check: a plain GET of this repository's latest release
+on GitHub, once a day (turn it off in About & Updates). Updates are never
+installed silently: **Download** saves the new DMG to Downloads and opens it. State lives in
 `~/Library/Application Support/Lidless/` (folder `0700`, files `0600`):
-`session.json`, `journal.json`, `config.json`, `last-end.json`, `lidless.log`.
+`session.json`, `journal.json`, `config.json`, `last-end.json`,
+`history.json` (finished sessions, for your stats), `lidless.log`.
 The log can contain process names. Check it before sharing.
 
 ## Development
 
 ```bash
 cd macos
-./scripts/test.sh         # unit tests (fakes only, never touch real settings)
-swift build               # debug build of the CLI and the app
-./scripts/build-app.sh    # dist/Lidless.app, ad-hoc signed, not installed
+./scripts/test.sh             # unit tests (fakes only, never touch real settings)
+swift build                   # debug build of the CLI and the app
+./scripts/build-app.sh        # dist/Lidless.app, ad-hoc signed, not installed
+./scripts/package-release.sh  # universal DMG + zip + SHA256SUMS in dist/
+swift scripts/make-icon.swift # rebuild all icons from public/lidless-icon.png
 ```
+
+Releases: bump `Sources/LidlessCore/Version.swift`, then push a tag `vX.Y.Z`.
+GitHub Actions tests, builds the universal DMG and zip, and publishes the
+release.
 
 The behavior contract shared by every platform lives in [`spec/`](spec/).
 Real-machine checks before a release: [`docs/release-validation.md`](docs/release-validation.md).

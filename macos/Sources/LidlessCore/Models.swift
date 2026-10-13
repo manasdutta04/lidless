@@ -153,6 +153,12 @@ public struct Config: Codable, Sendable, Equatable {
     public var verifySettleSeconds: TimeInterval = 5
     public var warnOnNetworkLoss: Bool = true
     public var notifications: Bool = true
+    /// Breathing menu bar icon while awake (paused while the lid is closed).
+    public var animateMenuBarIcon: Bool = true
+    /// Show the app in the Dock (it always stays in the menu bar).
+    public var showInDock: Bool = true
+    /// Check GitHub once a day for a newer release (a plain GET, nothing sent).
+    public var checkForUpdates: Bool = true
     /// Extra process names treated as coding agents (added to the built-in list).
     public var extraAgentNames: [String] = []
 
@@ -172,6 +178,9 @@ public struct Config: Codable, Sendable, Equatable {
         verifySettleSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .verifySettleSeconds) ?? d.verifySettleSeconds
         warnOnNetworkLoss = try c.decodeIfPresent(Bool.self, forKey: .warnOnNetworkLoss) ?? d.warnOnNetworkLoss
         notifications = try c.decodeIfPresent(Bool.self, forKey: .notifications) ?? d.notifications
+        animateMenuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .animateMenuBarIcon) ?? d.animateMenuBarIcon
+        showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? d.showInDock
+        checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         extraAgentNames = try c.decodeIfPresent([String].self, forKey: .extraAgentNames) ?? d.extraAgentNames
     }
 

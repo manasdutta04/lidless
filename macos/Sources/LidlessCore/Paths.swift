@@ -22,6 +22,7 @@ public struct LidlessPaths: Sendable, Equatable {
     public var journal: URL { home.appendingPathComponent("journal.json") }
     public var config: URL { home.appendingPathComponent("config.json") }
     public var lastEnd: URL { home.appendingPathComponent("last-end.json") }
+    public var history: URL { home.appendingPathComponent("history.json") }
     public var lock: URL { home.appendingPathComponent("lock") }
     public var log: URL { home.appendingPathComponent("lidless.log") }
     public var firstRunMarker: URL { home.appendingPathComponent("first-run-acknowledged") }
